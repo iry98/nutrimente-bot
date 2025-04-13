@@ -1,46 +1,40 @@
-import os
 from flask import Flask, request
-import openai
 import telegram
+import openai
+import os
 
-# Imposta le chiavi
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-OPENAI_KEY = os.environ.get("OPENAI_KEY")
-
-# Configura bot e OpenAI
-bot = telegram.Bot(token=TELEGRAM_TOKEN)
-openai.api_key = OPENAI_KEY
-
-# Flask per il webhook
+# Inizializza Flask
 app = Flask(__name__)
 
-# Messaggio di benvenuto
-WELCOME_TEXT = "Ciao! Sono NutriMente, il tuo coach virtuale per nutrizione e benessere. Scrivimi pure!"
+# Legge il token di Telegram e OpenAI dalle variabili di ambiente
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
-# Gestione richieste webhook
-@app.route("/webhook", methods=["POST"])
+# Configura i bot
+bot = telegram.Bot(token=TELEGRAM_TOKEN)
+openai.api_key = OPENAI_API_KEY
+
+# Route principale per ricevere i messaggi Telegram
+@app.route('/webhook', methods=['POST'])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
     chat_id = update.message.chat.id
-    message = update.message.text
+    user_message = update.message.text
 
-    if message.lower() in ["/start", "ciao", "buongiorno"]:
-        bot.send_message(chat_id=chat_id, text=WELCOME_TEXT)
-        return "OK"
+    # Risposta semplice tramite OpenAI
+    if user_message:
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Sei un assistente esperto in nutrizione e benessere."},
+                    {"role": "user", "content": user_message}
+                ]
+            )
+            reply = response['choices'][0]['message']['content'].strip()
+        except Exception as e:
+            reply = "C'è stato un errore nel generare la risposta."
 
-    try:
-        # Risposta con OpenAI
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Sei un esperto di nutrizione, benessere e stile di vita sano. Rispondi in modo amichevole e utile."},
-                {"role": "user", "content": message}
-            ]
-        )
-        reply = response['choices'][0]['message']['content'].strip()
         bot.send_message(chat_id=chat_id, text=reply)
-    except Exception as e:
-        bot.send_message(chat_id=chat_id, text="C'è stato un errore nel risponderti. Riprova più tardi.")
-        print("Errore:", e)
 
-    return "OK"
+    return 'ok'
