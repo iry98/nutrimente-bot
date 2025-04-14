@@ -33,7 +33,7 @@ def webhook():
             )
             reply = response['choices'][0]['message']['content'].strip()
         except Exception as e:
-            reply = "C'è stato un errore nel generare la risposta."
+            reply = reply = f"Errore OpenAI: {str(e)}"
 
         bot.send_message(chat_id=chat_id, text=reply)
 
