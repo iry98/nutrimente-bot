@@ -3,20 +3,16 @@ import telegram
 import openai
 import os
 
-# Inizializza Flask
 app = Flask(__name__)
 
-# Legge i token dalle variabili d'ambiente
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
-# Configura il bot di Telegram
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
-# Configura API Key di OpenAI
-openai.api_key = OPENAI_API_KEY
+# Nuovo modo di autenticarsi con OpenAI
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# Webhook per ricevere messaggi da Telegram
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), bot)
@@ -24,10 +20,10 @@ def webhook():
     user_message = update.message.text
 
     try:
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Sei un assistente esperto in nutrizione e benessere."},
+                {"role": "system", "content": "Sei un esperto di nutrizione e benessere."},
                 {"role": "user", "content": user_message}
             ]
         )
