@@ -1,34 +1,33 @@
-from flask import Flask, request
-import telegram
 import os
 import openai
+from flask import Flask, request
 
 app = Flask(__name__)
 
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+# Prende la chiave API da una variabile d'ambiente
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-bot = telegram.Bot(token=TELEGRAM_TOKEN)
-
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
+@app.route('/', methods=['GET'])
+def home():
+    return "Bot attivo!"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    chat_id = update.message.chat.id
-    user_message = update.message.text
+    data = request.json
+    message = data.get("message", {}).get("text", "")
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Sei un esperto di nutrizione e benessere."},
-                {"role": "user", "content": user_message}
+                {"role": "user", "content": message}
             ]
         )
-        reply = response.choices[0].message.content.strip()
-    except Exception as e:
-        reply = f"Errore OpenAI: {str(e)}"
+        reply = response['choices'][0]['message']['content']
+        return {"response": reply}, 200
 
-    bot.send_message(chat_id=chat_id, text=reply)
-    return 'ok'
+    except Exception as e:
+        return {"error": f"Errore OpenAI: {str(e)}"}, 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
