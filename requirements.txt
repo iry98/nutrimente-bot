@@ -1,2 +1,5 @@
 flask
-openai==1.3.5
+python-telegram-bot==13.7
+stripe
+python-dotenv
+gunicorn
