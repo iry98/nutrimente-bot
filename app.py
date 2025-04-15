@@ -1,33 +1,45 @@
 import os
-import openai
-from flask import Flask, request
+from flask import Flask, request, redirect
+import telegram
+from telegram import Update
+from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+import stripe
+from stripe_config import create_checkout_session, is_user_subscribed
 
 app = Flask(__name__)
 
-# Prende la chiave API da una variabile d'ambiente
-openai.api_key = os.getenv("OPENAI_API_KEY")
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = telegram.Bot(token=TOKEN)
 
-@app.route('/', methods=['GET'])
-def home():
-    return "Bot attivo!"
-
-@app.route('/webhook', methods=['POST'])
+@app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
-    data = request.json
-    message = data.get("message", {}).get("text", "")
+    update = telegram.Update.de_json(request.get_json(force=True), bot)
+    dp = Dispatcher(bot, None, workers=0)
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.text, handle_message))
+    dp.process_update(update)
+    return "OK", 200
 
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": message}
-            ]
-        )
-        reply = response['choices'][0]['message']['content']
-        return {"response": reply}, 200
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot di nutrizione attivo", 200
 
-    except Exception as e:
-        return {"error": f"Errore OpenAI: {str(e)}"}, 500
+@app.route("/subscribe/<chat_id>", methods=["GET"])
+def subscribe(chat_id):
+    return redirect(create_checkout_session(chat_id), code=303)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+def start(update: Update, context):
+    chat_id = update.message.chat.id
+    if is_user_subscribed(str(chat_id)):
+        context.bot.send_message(chat_id=chat_id, text="Bentornato! Scrivi un argomento per ricevere consigli nutrizionali.")
+    else:
+        url = f"https://TUO_DOMINIO_RENDER/subscribe/{chat_id}"
+        context.bot.send_message(chat_id=chat_id, text=f"Per accedere ai contenuti, abbonati qui:\n{url}")
+
+def handle_message(update: Update, context):
+    chat_id = update.message.chat.id
+    if is_user_subscribed(str(chat_id)):
+        context.bot.send_message(chat_id=chat_id, text="Ecco un consiglio nutrizionale: bevi almeno 2 litri d'acqua al giorno.")
+    else:
+        url = f"https://TUO_DOMINIO_RENDER/subscribe/{chat_id}"
+        context.bot.send_message(chat_id=chat_id, text=f"Per continuare, abbonati qui:\n{url}")
