@@ -1,45 +1,36 @@
 import os
-from flask import Flask, request, redirect
 import telegram
-from telegram import Update
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
-import stripe
-from stripe_config import create_checkout_session, is_user_subscribed
+from flask import Flask, request
+from dotenv import load_dotenv
 
+# Carica variabili da .env
+load_dotenv()
+
+# Imposta il bot di Telegram
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+# Crea l'app Flask
 app = Flask(__name__)
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = telegram.Bot(token=TOKEN)
+# Funzione per gestire il webhook
+@app.route('/<token>', methods=['POST'])
+def webhook(token):
+    if token == TELEGRAM_TOKEN:
+        update = telegram.Update.de_json(request.get_json(), bot)
+        chat_id = update.message.chat_id
+        text = update.message.text
+        
+        # Rispondi al messaggio
+        bot.sendMessage(chat_id=chat_id, text=f"Hai scritto: {text}")
+        return 'OK'
+    return 'Unauthorized', 403
 
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    dp = Dispatcher(bot, None, workers=0)
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text, handle_message))
-    dp.process_update(update)
-    return "OK", 200
-
-@app.route("/", methods=["GET"])
+# Pagina di test per verificare che il server stia funzionando
+@app.route('/')
 def home():
-    return "Bot di nutrizione attivo", 200
+    return "Bot di nutrizione e benessere in esecuzione!"
 
-@app.route("/subscribe/<chat_id>", methods=["GET"])
-def subscribe(chat_id):
-    return redirect(create_checkout_session(chat_id), code=303)
-
-def start(update: Update, context):
-    chat_id = update.message.chat.id
-    if is_user_subscribed(str(chat_id)):
-        context.bot.send_message(chat_id=chat_id, text="Bentornato! Scrivi un argomento per ricevere consigli nutrizionali.")
-    else:
-        url = f"https://TUO_DOMINIO_RENDER/subscribe/{chat_id}"
-        context.bot.send_message(chat_id=chat_id, text=f"Per accedere ai contenuti, abbonati qui:\n{url}")
-
-def handle_message(update: Update, context):
-    chat_id = update.message.chat.id
-    if is_user_subscribed(str(chat_id)):
-        context.bot.send_message(chat_id=chat_id, text="Ecco un consiglio nutrizionale: bevi almeno 2 litri d'acqua al giorno.")
-    else:
-        url = f"https://TUO_DOMINIO_RENDER/subscribe/{chat_id}"
-        context.bot.send_message(chat_id=chat_id, text=f"Per continuare, abbonati qui:\n{url}")
+if __name__ == '__main__':
+    # Usa gunicorn per eseguire il server in produzione (su Render)
+    app.run(debug=True)
